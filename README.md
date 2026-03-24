@@ -11,7 +11,8 @@ including metadata, channel info, and pixel statistics.
 ## Installation
 
 ```bash
-cd D:\dev\mcp-server-openexr
+git clone https://github.com/chordee/mcp-server-openexr.git
+cd mcp-server-openexr
 uv sync
 ```
 
@@ -45,7 +46,7 @@ Add the following to `claude_desktop_config.json`:
       "args": [
         "run",
         "--directory",
-        "D:\\dev\\mcp-server-openexr",
+        "/path/to/mcp-server-openexr",
         "main.py"
       ]
     }
