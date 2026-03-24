@@ -1,4 +1,4 @@
-"""Business logic layer for reading OpenEXR files."""
+"""Business logic layer for reading and writing OpenEXR files."""
 
 import os
 import re
@@ -492,3 +492,71 @@ class ExrReader:
             result["pixel_issues"] = []
 
         return result
+
+    # Header keys to carry over when extracting a part.
+    # Renderer-specific metadata (husk:*, render times, camera matrices, etc.)
+    # is intentionally omitted — the source file retains the full record.
+    _EXTRACT_HEADER_KEYS = {
+        "dataWindow", "displayWindow", "pixelAspectRatio",
+        "screenWindowCenter", "screenWindowWidth", "lineOrder",
+        "compression", "type", "name",
+        "oiio:ColorSpace", "output_colorspace", "typeSemantics",
+        "frame", "FramesPerSecond",
+    }
+
+    def extract_part(
+        self,
+        file_path: str,
+        part_index: int = 0,
+    ) -> dict:
+        """Extract one part from a multi-part EXR and write it as a new single-part EXR.
+
+        Output path: <source_dir>/<part_name>/<source_filename>
+        The output directory must not already exist (non-destructive).
+        """
+        ok, err = self.validate_file(file_path)
+        if not ok:
+            return {"error": err}
+
+        f = OpenEXR.File(file_path)
+        parts = f.parts
+        if part_index >= len(parts):
+            return {"error": f"part_index {part_index} out of range (file has {len(parts)} parts)"}
+
+        src_part = parts[part_index]
+        part_name = src_part.name()
+
+        # Compute output path
+        src_dir = os.path.dirname(os.path.abspath(file_path))
+        src_filename = os.path.basename(file_path)
+        output_dir = os.path.join(src_dir, part_name)
+        output_path = os.path.join(output_dir, src_filename)
+
+        if os.path.exists(output_dir):
+            return {"error": f"Output directory already exists: {output_dir}"}
+
+        # Build a minimal header from the allowed keys
+        header = {k: v for k, v in src_part.header.items() if k in self._EXTRACT_HEADER_KEYS}
+
+        # Collect pixel arrays keyed by channel name
+        channels = {name: ch.pixels for name, ch in src_part.channels.items()}
+
+        os.makedirs(output_dir)
+        try:
+            new_part = OpenEXR.Part(header, channels)
+            OpenEXR.File([new_part]).write(output_path)
+        except Exception as e:
+            # Roll back the directory if write fails
+            os.rmdir(output_dir)
+            return {"error": f"Failed to write EXR: {e}"}
+
+        return {
+            "source_file": file_path,
+            "part_index": part_index,
+            "part_name": part_name,
+            "output_path": output_path,
+            "channels": list(src_part.channels.keys()),
+            "width": src_part.width(),
+            "height": src_part.height(),
+            "file_size_bytes": os.path.getsize(output_path),
+        }
