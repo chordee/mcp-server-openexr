@@ -1,8 +1,8 @@
-"""OpenEXR 常數與枚舉對應表"""
+"""OpenEXR constants and enum lookup tables."""
 
 import OpenEXR
 
-# 壓縮格式枚舉 → 可讀字串
+# Compression enum -> human-readable string
 COMPRESSION_NAMES: dict[int, str] = {
     OpenEXR.Compression.NO_COMPRESSION: "NO_COMPRESSION",
     OpenEXR.Compression.RLE_COMPRESSION: "RLE",
@@ -16,14 +16,14 @@ COMPRESSION_NAMES: dict[int, str] = {
     OpenEXR.Compression.DWAB_COMPRESSION: "DWAB",
 }
 
-# Pixel type 枚舉 → 可讀字串
+# Pixel type enum -> human-readable string
 PIXEL_TYPE_NAMES: dict = {
     OpenEXR.PixelType.HALF: "HALF",
     OpenEXR.PixelType.FLOAT: "FLOAT",
     OpenEXR.PixelType.UINT: "UINT",
 }
 
-# Storage type 枚舉 → 可讀字串
+# Storage type enum -> human-readable string
 STORAGE_TYPE_NAMES: dict = {
     OpenEXR.Storage.scanlineimage: "scanlineimage",
     OpenEXR.Storage.tiledimage: "tiledimage",
@@ -33,15 +33,15 @@ STORAGE_TYPE_NAMES: dict = {
 
 
 def compression_to_str(compression) -> str:
-    """將壓縮格式枚舉轉為字串"""
+    """Convert a compression enum value to a string."""
     return COMPRESSION_NAMES.get(compression, str(compression).split(".")[-1])
 
 
 def pixel_type_to_str(pixel_type) -> str:
-    """將 pixel type 枚舉轉為字串"""
+    """Convert a pixel type enum value to a string."""
     return PIXEL_TYPE_NAMES.get(pixel_type, str(pixel_type).split(".")[-1])
 
 
 def storage_type_to_str(storage_type) -> str:
-    """將 storage type 枚舉轉為字串"""
+    """Convert a storage type enum value to a string."""
     return STORAGE_TYPE_NAMES.get(storage_type, str(storage_type).split(".")[-1])

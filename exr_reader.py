@@ -1,4 +1,4 @@
-"""OpenEXR 業務邏輯包裝層"""
+"""Business logic layer for reading OpenEXR files."""
 
 import os
 import re
@@ -10,7 +10,7 @@ from exr_types import compression_to_str, pixel_type_to_str, storage_type_to_str
 
 
 def _serialize_header_value(v):
-    """將 header 中的值序列化為 JSON 相容格式（遞迴處理巢狀結構）"""
+    """Recursively serialize a header value to a JSON-compatible type."""
     if isinstance(v, np.ndarray):
         return v.tolist()
     if isinstance(v, np.integer):
@@ -28,7 +28,7 @@ def _serialize_header_value(v):
         return storage_type_to_str(v)
     if "LineOrder" in type_name:
         return str(v).split(".")[-1].rstrip(": 0123456789>")
-    # Channel 物件
+    # Channel object
     if "Channel" in type_name and hasattr(v, "name"):
         info: dict = {"name": v.name}
         try:
@@ -41,10 +41,9 @@ def _serialize_header_value(v):
         except Exception:
             pass
         return info
-    # 基本型別直接回傳
+    # Primitive types pass through unchanged
     if isinstance(v, (int, float, str, bool)):
         return v
-    # 其他型別轉字串
     try:
         return str(v)
     except Exception:
@@ -53,20 +52,20 @@ def _serialize_header_value(v):
 
 class ExrReader:
     def validate_file(self, file_path: str) -> tuple[bool, str | None]:
-        """驗證檔案是否存在且可以開啟"""
+        """Check that the file exists and can be opened as an EXR."""
         if not os.path.exists(file_path):
-            return False, f"檔案不存在：{file_path}"
+            return False, f"File not found: {file_path}"
         if not os.path.isfile(file_path):
-            return False, f"路徑不是檔案：{file_path}"
+            return False, f"Path is not a file: {file_path}"
         try:
             f = OpenEXR.File(file_path)
             _ = f.parts
             return True, None
         except Exception as e:
-            return False, f"無法開啟 EXR 檔案：{e}"
+            return False, f"Failed to open EXR file: {e}"
 
     def get_file_info(self, file_path: str) -> dict:
-        """取得 EXR 基本資訊：解析度、part 數量、channel 清單、壓縮格式"""
+        """Return basic file info: resolution, part count, channel list, compression."""
         ok, err = self.validate_file(file_path)
         if not ok:
             return {"error": err}
@@ -98,7 +97,7 @@ class ExrReader:
         }
 
     def get_header(self, file_path: str, part_index: int = 0) -> dict:
-        """取得完整 header attributes"""
+        """Return all header attributes for the given part."""
         ok, err = self.validate_file(file_path)
         if not ok:
             return {"error": err}
@@ -106,7 +105,7 @@ class ExrReader:
         f = OpenEXR.File(file_path)
         parts = f.parts
         if part_index >= len(parts):
-            return {"error": f"part_index {part_index} 超出範圍（共 {len(parts)} 個 part）"}
+            return {"error": f"part_index {part_index} out of range (file has {len(parts)} parts)"}
 
         p = parts[part_index]
         raw_header = p.header
@@ -116,7 +115,7 @@ class ExrReader:
             try:
                 serialized[k] = _serialize_header_value(v)
             except Exception as e:
-                serialized[k] = f"<序列化失敗: {e}>"
+                serialized[k] = f"<serialization failed: {e}>"
 
         return {
             "file_path": file_path,
@@ -126,7 +125,7 @@ class ExrReader:
         }
 
     def get_channels(self, file_path: str, part_index: int = 0) -> dict:
-        """取得 channel 詳細資訊（pixel_type, sampling）"""
+        """Return channel details (pixel type, sampling) for the given part."""
         ok, err = self.validate_file(file_path)
         if not ok:
             return {"error": err}
@@ -134,7 +133,7 @@ class ExrReader:
         f = OpenEXR.File(file_path)
         parts = f.parts
         if part_index >= len(parts):
-            return {"error": f"part_index {part_index} 超出範圍（共 {len(parts)} 個 part）"}
+            return {"error": f"part_index {part_index} out of range (file has {len(parts)} parts)"}
 
         p = parts[part_index]
         channels_info = {}
@@ -162,7 +161,7 @@ class ExrReader:
         part_index: int = 0,
         ignore_nan: bool = True,
     ) -> dict:
-        """計算像素統計：min/max/mean、NaN/Inf 計數"""
+        """Compute pixel statistics (min/max/mean/percentiles, NaN/Inf counts) per channel."""
         ok, err = self.validate_file(file_path)
         if not ok:
             return {"error": err}
@@ -170,7 +169,7 @@ class ExrReader:
         f = OpenEXR.File(file_path)
         parts = f.parts
         if part_index >= len(parts):
-            return {"error": f"part_index {part_index} 超出範圍（共 {len(parts)} 個 part）"}
+            return {"error": f"part_index {part_index} out of range (file has {len(parts)} parts)"}
 
         p = parts[part_index]
         available_channels = list(p.channels.keys())
@@ -178,7 +177,7 @@ class ExrReader:
         if channels:
             missing = [c for c in channels if c not in available_channels]
             if missing:
-                return {"error": f"找不到 channel：{missing}，可用的有：{available_channels}"}
+                return {"error": f"Channels not found: {missing}. Available: {available_channels}"}
             target_channels = channels
         else:
             target_channels = available_channels
@@ -189,10 +188,10 @@ class ExrReader:
             arr = ch.pixels
 
             if arr is None:
-                stats[ch_name] = {"error": "無法讀取像素資料"}
+                stats[ch_name] = {"error": "Failed to read pixel data"}
                 continue
 
-            # 展平為 1D 以便統計
+            # Flatten to 1D for statistics
             flat = arr.flatten().astype(np.float64)
 
             nan_count = int(np.count_nonzero(np.isnan(flat)))
@@ -213,7 +212,7 @@ class ExrReader:
                     "max": None,
                     "mean": None,
                     "percentiles": {"p25": None, "p50": None, "p75": None, "p95": None},
-                    "warning": "所有像素均為 NaN 或 Inf",
+                    "warning": "All pixels are NaN or Inf",
                 }
             else:
                 p25, p50, p75, p95 = np.percentile(valid, [25, 50, 75, 95])
@@ -246,9 +245,9 @@ class ExrReader:
         pattern: str = "*.exr",
         max_files: int = 50,
     ) -> dict:
-        """掃描目錄中的 EXR 序列，檢查一致性"""
+        """Scan a directory for an EXR sequence and check consistency across frames."""
         if not os.path.isdir(directory):
-            return {"error": f"目錄不存在：{directory}"}
+            return {"error": f"Directory not found: {directory}"}
 
         all_files = sorted([
             f for f in os.listdir(directory)
@@ -261,13 +260,13 @@ class ExrReader:
                 "pattern": pattern,
                 "file_count": 0,
                 "files": [],
-                "message": "未找到符合的 EXR 檔案",
+                "message": "No matching EXR files found",
             }
 
         scanned_files = all_files[:max_files]
         truncated = len(all_files) > max_files
 
-        # 嘗試從檔名解析幀號
+        # Extract frame numbers from filenames
         frame_numbers = []
         frame_pattern = re.compile(r"(\d+)(?=\.\w+$)")
         for fname in scanned_files:
@@ -275,7 +274,7 @@ class ExrReader:
             if m:
                 frame_numbers.append(int(m.group(1)))
 
-        # 取得第一個檔案的基本資訊作為參考
+        # Use the first file as reference for consistency checks
         reference_info = None
         inconsistencies = []
         files_info = []
@@ -300,18 +299,21 @@ class ExrReader:
                     else:
                         diffs = []
                         if info["width"] != reference_info["width"] or info["height"] != reference_info["height"]:
-                            diffs.append(f"解析度不符：{info['width']}x{info['height']} vs {reference_info['width']}x{reference_info['height']}")
+                            diffs.append(
+                                f"Resolution mismatch: {info['width']}x{info['height']}"
+                                f" vs {reference_info['width']}x{reference_info['height']}"
+                            )
                         if info["channels"] != reference_info["channels"]:
-                            diffs.append(f"Channel 不符")
+                            diffs.append("Channel list mismatch")
                         if diffs:
                             inconsistencies.append({"filename": fname, "issues": diffs})
                     files_info.append(info)
                 else:
-                    files_info.append({"filename": fname, "error": "無 part 資料"})
+                    files_info.append({"filename": fname, "error": "No parts found"})
             except Exception as e:
                 files_info.append({"filename": fname, "error": str(e)})
 
-        # 偵測缺幀
+        # Detect missing frames
         missing_frames = []
         if len(frame_numbers) >= 2:
             frame_set = set(frame_numbers)
@@ -343,7 +345,7 @@ class ExrReader:
         channels: list[str] | None = None,
         part_index: int = 0,
     ) -> dict:
-        """比較兩個 EXR 的 channel 差異"""
+        """Compare pixel differences between two EXR files, channel by channel."""
         for path in [file_path_a, file_path_b]:
             ok, err = self.validate_file(path)
             if not ok:
@@ -356,9 +358,9 @@ class ExrReader:
         parts_b = fb.parts
 
         if part_index >= len(parts_a):
-            return {"error": f"file_a part_index {part_index} 超出範圍"}
+            return {"error": f"file_a: part_index {part_index} out of range"}
         if part_index >= len(parts_b):
-            return {"error": f"file_b part_index {part_index} 超出範圍"}
+            return {"error": f"file_b: part_index {part_index} out of range"}
 
         pa = parts_a[part_index]
         pb = parts_b[part_index]
@@ -373,12 +375,11 @@ class ExrReader:
         if channels:
             missing = [c for c in channels if c not in channels_a and c not in channels_b]
             if missing:
-                return {"error": f"指定的 channel 在兩個檔案中均不存在：{missing}"}
+                return {"error": f"Channels not found in either file: {missing}"}
             compare_list = [c for c in channels if c in common]
         else:
             compare_list = common
 
-        # 解析度比較
         size_match = (pa.width() == pb.width() and pa.height() == pb.height())
 
         channel_diffs = {}
@@ -387,9 +388,7 @@ class ExrReader:
                 arr_a = pa.channels[ch_name].pixels.flatten().astype(np.float64)
                 arr_b = pb.channels[ch_name].pixels.flatten().astype(np.float64)
 
-                diff = arr_a - arr_b
-                abs_diff = np.abs(diff)
-
+                abs_diff = np.abs(arr_a - arr_b)
                 valid_mask = np.isfinite(arr_a) & np.isfinite(arr_b)
                 valid_diff = abs_diff[valid_mask]
 
@@ -401,7 +400,12 @@ class ExrReader:
                     "pixels_compared": int(valid_mask.sum()),
                 }
         elif not size_match:
-            channel_diffs = {"error": f"解析度不一致，無法比較像素：{pa.width()}x{pa.height()} vs {pb.width()}x{pb.height()}"}
+            channel_diffs = {
+                "error": (
+                    f"Resolution mismatch, cannot compare pixels: "
+                    f"{pa.width()}x{pa.height()} vs {pb.width()}x{pb.height()}"
+                )
+            }
 
         return {
             "file_path_a": file_path_a,
@@ -417,13 +421,18 @@ class ExrReader:
             "channel_diffs": channel_diffs,
         }
 
-    def check_validity(self, file_path: str, check_pixels: bool = True) -> dict:
-        """驗證 EXR 可否開啟、偵測 NaN/Inf 問題"""
+    def check_validity(
+        self,
+        file_path: str,
+        check_pixels: bool = True,
+        channels: list[str] | None = None,
+    ) -> dict:
+        """Validate that an EXR can be opened and optionally scan for NaN/Inf pixels."""
         if not os.path.exists(file_path):
             return {
                 "file_path": file_path,
                 "valid": False,
-                "error": "檔案不存在",
+                "error": "File not found",
             }
 
         try:
@@ -433,14 +442,14 @@ class ExrReader:
             return {
                 "file_path": file_path,
                 "valid": False,
-                "error": f"無法開啟檔案：{e}",
+                "error": f"Failed to open file: {e}",
             }
 
         if not parts:
             return {
                 "file_path": file_path,
                 "valid": False,
-                "error": "EXR 檔案沒有任何 part",
+                "error": "EXR file contains no parts",
             }
 
         result = {
@@ -453,7 +462,10 @@ class ExrReader:
         if check_pixels:
             pixel_issues = []
             for i, p in enumerate(parts):
-                for ch_name, ch in p.channels.items():
+                available = p.channels.keys()
+                target = [c for c in channels if c in available] if channels else list(available)
+                for ch_name in target:
+                    ch = p.channels[ch_name]
                     try:
                         arr = ch.pixels.flatten().astype(np.float64)
                         nan_count = int(np.count_nonzero(np.isnan(arr)))
