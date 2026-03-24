@@ -1,0 +1,17 @@
+[project]
+name = "mcp-server-openexr"
+version = "0.1.0"
+description = "MCP Server for querying OpenEXR file metadata, channels, and pixel statistics"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "openexr>=3.3.0",
+    "numpy>=1.26.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["main", "exr_reader", "exr_types"]
