@@ -136,11 +136,19 @@ async def check_exr_validity(
 @mcp.tool()
 async def extract_exr_part(
     file_path: Annotated[str, Field(description="Absolute path to the source EXR file")],
-    part_index: Annotated[int, Field(description="Index of the part to extract (0-based)", ge=0)] = 0,
+    part_name: Annotated[
+        str | None,
+        Field(description="Name of the part to extract (e.g. 'C', 'AO'). Takes precedence over part_index.")
+    ] = None,
+    part_index: Annotated[
+        int | None,
+        Field(description="Index of the part to extract (0-based). Used when part_name is not specified.", ge=0)
+    ] = None,
 ) -> dict:
     """
     Extract a single part from a multi-part EXR and save it as a new single-part EXR file.
 
+    Specify the target part by name (e.g. 'C', 'AO') or by index. Name takes precedence.
     Output is written to <source_dir>/<part_name>/<source_filename>.
     The output directory must not already exist (non-destructive).
     Only essential header attributes are carried over; renderer-specific metadata
@@ -148,7 +156,7 @@ async def extract_exr_part(
     the full record.
     """
     return await _handle_exr_errors(
-        asyncio.to_thread(EXR.extract_part, file_path, part_index)
+        asyncio.to_thread(EXR.extract_part, file_path, part_index, part_name)
     )
 
 

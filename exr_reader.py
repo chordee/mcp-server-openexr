@@ -507,10 +507,12 @@ class ExrReader:
     def extract_part(
         self,
         file_path: str,
-        part_index: int = 0,
+        part_index: int | None = None,
+        part_name: str | None = None,
     ) -> dict:
         """Extract one part from a multi-part EXR and write it as a new single-part EXR.
 
+        Specify the part by part_name or part_index (part_name takes precedence).
         Output path: <source_dir>/<part_name>/<source_filename>
         The output directory must not already exist (non-destructive).
         """
@@ -520,10 +522,19 @@ class ExrReader:
 
         f = OpenEXR.File(file_path)
         parts = f.parts
-        if part_index >= len(parts):
-            return {"error": f"part_index {part_index} out of range (file has {len(parts)} parts)"}
 
-        src_part = parts[part_index]
+        if part_name is not None:
+            matches = [i for i, p in enumerate(parts) if p.name() == part_name]
+            if not matches:
+                available = [p.name() for p in parts]
+                return {"error": f"Part '{part_name}' not found. Available: {available}"}
+            resolved_index = matches[0]
+        else:
+            resolved_index = part_index if part_index is not None else 0
+            if resolved_index >= len(parts):
+                return {"error": f"part_index {resolved_index} out of range (file has {len(parts)} parts)"}
+
+        src_part = parts[resolved_index]
         part_name = src_part.name()
 
         # Compute output path
@@ -552,8 +563,8 @@ class ExrReader:
 
         return {
             "source_file": file_path,
-            "part_index": part_index,
-            "part_name": part_name,
+            "part_index": resolved_index,
+            "part_name": src_part.name(),
             "output_path": output_path,
             "channels": list(src_part.channels.keys()),
             "width": src_part.width(),
