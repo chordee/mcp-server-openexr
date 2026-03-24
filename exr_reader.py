@@ -212,9 +212,11 @@ class ExrReader:
                     "min": None,
                     "max": None,
                     "mean": None,
+                    "percentiles": {"p25": None, "p50": None, "p75": None, "p95": None},
                     "warning": "所有像素均為 NaN 或 Inf",
                 }
             else:
+                p25, p50, p75, p95 = np.percentile(valid, [25, 50, 75, 95])
                 stats[ch_name] = {
                     "pixel_count": total_pixels,
                     "nan_count": nan_count,
@@ -222,6 +224,12 @@ class ExrReader:
                     "min": float(np.min(valid)),
                     "max": float(np.max(valid)),
                     "mean": float(np.mean(valid)),
+                    "percentiles": {
+                        "p25": float(p25),
+                        "p50": float(p50),
+                        "p75": float(p75),
+                        "p95": float(p95),
+                    },
                 }
 
         return {

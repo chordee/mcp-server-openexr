@@ -1,40 +1,41 @@
 # mcp-server-openexr
 
-MCP Server，提供 Claude 直接查詢本地 OpenEXR 渲染檔的能力，包含 metadata、channel 資訊與像素統計。
+MCP Server that gives Claude direct access to local OpenEXR files,
+including metadata, channel info, and pixel statistics.
 
-## 環境需求
+## Requirements
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/)
 
-## 安裝
+## Installation
 
 ```bash
 cd D:\dev\mcp-server-openexr
 uv sync
 ```
 
-## 啟動
+## Running
 
 ```bash
-uv run python main.py
+uv run main.py
 ```
 
-## MCP 工具清單
+## Tools
 
-| 工具 | 用途 |
-| ---- | ---- |
-| `get_exr_info` | EXR 基本資訊：解析度、part 數量、channel 清單、壓縮格式 |
-| `get_exr_header` | 完整 header attributes（含自訂屬性，如 Houdini 渲染設定） |
-| `get_exr_channels` | Channel 詳細資訊（pixel_type, sampling） |
-| `get_exr_pixel_stats` | 像素統計：min/max/mean、NaN/Inf 計數 |
-| `get_exr_sequence_info` | 掃描目錄中的 EXR 序列，檢查缺幀與一致性 |
-| `compare_exr_channels` | 比較兩個 EXR 的 channel 差異（QC 用途） |
-| `check_exr_validity` | 驗證 EXR 可否開啟、偵測 NaN/Inf 問題 |
+| Tool | Description |
+| ---- | ----------- |
+| `get_exr_info` | Resolution, part count, channel list, compression |
+| `get_exr_header` | Full header attributes including custom metadata |
+| `get_exr_channels` | Channel pixel type (HALF/FLOAT/UINT) and sampling |
+| `get_exr_pixel_stats` | Pixel statistics: min/max/mean and NaN/Inf counts |
+| `get_exr_sequence_info` | Scan EXR sequences, detect missing frames |
+| `compare_exr_channels` | Compare channel differences between two EXR files |
+| `check_exr_validity` | Validate EXR integrity and detect NaN/Inf pixels |
 
-## Claude Desktop 設定
+## Claude Desktop Configuration
 
-在 `claude_desktop_config.json` 中加入：
+Add the following to `claude_desktop_config.json`:
 
 ```json
 {
@@ -45,7 +46,6 @@ uv run python main.py
         "run",
         "--directory",
         "D:\\dev\\mcp-server-openexr",
-        "python",
         "main.py"
       ]
     }
