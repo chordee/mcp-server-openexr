@@ -1,7 +1,7 @@
 # mcp-server-openexr
 
 MCP Server that gives Claude direct access to local OpenEXR files,
-including metadata, channel info, and pixel statistics.
+including metadata, channel info, pixel statistics, and part extraction.
 
 ## Requirements
 
@@ -29,10 +29,11 @@ uv run main.py
 | `get_exr_info` | Resolution, part count, channel list, compression |
 | `get_exr_header` | Full header attributes including custom metadata |
 | `get_exr_channels` | Channel pixel type (HALF/FLOAT/UINT) and sampling |
-| `get_exr_pixel_stats` | Pixel statistics: min/max/mean and NaN/Inf counts |
+| `get_exr_pixel_stats` | Pixel stats: min/max/mean, percentiles, NaN/Inf |
 | `get_exr_sequence_info` | Scan EXR sequences, detect missing frames |
 | `compare_exr_channels` | Compare channel differences between two EXR files |
 | `check_exr_validity` | Validate EXR integrity and detect NaN/Inf pixels |
+| `extract_exr_part` | Extract one part into a new single-part EXR file |
 
 ## Claude Desktop Configuration
 
