@@ -15,4 +15,4 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["main", "exr_reader", "exr_types", "tx_reader", "tx_types"]
+py-modules = ["main", "exr_reader", "exr_types", "tx_reader", "tx_types", "dpx_reader", "dpx_types"]

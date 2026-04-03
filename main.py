@@ -8,10 +8,12 @@ from pydantic import Field
 
 from exr_reader import ExrReader
 from tx_reader import TxReader
+from dpx_reader import DpxReader
 
 mcp = FastMCP("mcp-server-openexr")
 EXR = ExrReader()
 TX = TxReader()
+DPX = DpxReader()
 
 
 async def _handle_errors(coro):
@@ -159,6 +161,53 @@ async def extract_exr_part(
     """
     return await _handle_errors(
         asyncio.to_thread(EXR.extract_part, file_path, part_index, part_name)
+    )
+
+
+@mcp.tool()
+async def get_dpx_info(
+    file_path: Annotated[str, Field(description="Absolute path to the DPX file")],
+) -> dict:
+    """
+    Return basic DPX file info: resolution, channel list, pixel format, bit depth,
+    transfer characteristic, colorimetric, packing, timecode, and input device.
+    Good starting point for inspecting a DPX frame from a film scan or digital camera.
+    """
+    return await _handle_errors(
+        asyncio.to_thread(DPX.get_file_info, file_path)
+    )
+
+
+@mcp.tool()
+async def get_dpx_header(
+    file_path: Annotated[str, Field(description="Absolute path to the DPX file")],
+) -> dict:
+    """
+    Return all header metadata for the DPX file, including DPX-specific fields
+    such as transfer characteristic, colorimetric, input device, frame position,
+    timecode, and signal standard.
+    """
+    return await _handle_errors(
+        asyncio.to_thread(DPX.get_header, file_path)
+    )
+
+
+@mcp.tool()
+async def get_dpx_pixel_stats(
+    file_path: Annotated[str, Field(description="Absolute path to the DPX file")],
+    channels: Annotated[
+        list[str] | None,
+        Field(description="Channel names to compute stats for; null means all channels")
+    ] = None,
+    ignore_nan: Annotated[bool, Field(description="Exclude NaN/Inf values from statistics")] = True,
+) -> dict:
+    """
+    Compute pixel statistics per channel: min, max, mean, percentiles (p25/p50/p75/p95),
+    and NaN/Inf pixel counts. For sub-16-bit DPX (e.g. 10-bit Cineon log), pixel values
+    are normalized to 0-1 from the UINT16 container; see the stats_note field for details.
+    """
+    return await _handle_errors(
+        asyncio.to_thread(DPX.get_pixel_stats, file_path, channels, ignore_nan)
     )
 
 
