@@ -1,6 +1,6 @@
 # mcp-server-openexr
 
-MCP Server that gives Claude direct access to local OpenEXR and TX texture files,
+MCP Server that gives Claude direct access to local OpenEXR, TX texture, and DPX files,
 including metadata, channel info, pixel statistics, and part extraction.
 
 ## Requirements
@@ -49,6 +49,17 @@ used in RenderMan and Arnold rendering pipelines.
 | `get_tx_channels` | Channel names, pixel types, and tiling info |
 | `get_tx_pixel_stats` | Pixel stats per channel; use a higher `mip_level` for fast approximate stats on large textures |
 | `get_tx_sequence_info` | Scan TX sequences, detect missing frames and inconsistencies |
+
+### DPX
+
+DPX (Digital Picture Exchange) files are commonly used in film scanning,
+digital intermediate (DI), and VFX pipelines. Supports 8-, 10-, 12-, and 16-bit formats.
+
+| Tool | Description |
+| ---- | ----------- |
+| `get_dpx_info` | Resolution, channel list, pixel format, bit depth, and color space |
+| `get_dpx_header` | Full DPX header metadata including film/TV-specific fields |
+| `get_dpx_pixel_stats` | Pixel stats: min/max/mean, percentiles, NaN/Inf counts |
 
 ## Claude Desktop Configuration
 
