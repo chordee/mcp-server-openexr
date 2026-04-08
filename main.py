@@ -290,5 +290,44 @@ async def get_tx_sequence_info(
     )
 
 
+@mcp.tool()
+async def reframe_exr(
+    input_path: Annotated[str, Field(description="Absolute path to the source EXR file")],
+    output_path: Annotated[str, Field(description="Absolute path for the output EXR file (must differ from input)")],
+    target_ratio: Annotated[float, Field(description="Target aspect ratio as width/height (e.g. 1.7778 for 16:9, 2.35, 1.85)", gt=0)],
+    mode: Annotated[
+        str,
+        Field(description="'expand' adds black borders to reach target ratio; 'crop' removes pixels from edges")
+    ] = "expand",
+    anchor: Annotated[
+        str,
+        Field(description=(
+            "Reference point for the operation. Default 'center'. "
+            "When width changes: 'left', 'center', 'right'. "
+            "When height changes: 'top', 'center', 'bottom'."
+        ))
+    ] = "center",
+    part_index: Annotated[
+        int,
+        Field(description="Index of the part to reframe (0-based). Other parts are written unchanged.", ge=0)
+    ] = 0,
+) -> dict:
+    """
+    Adjust an EXR's aspect ratio by expanding (adding black borders) or cropping.
+
+    Expand mode: adds zero-value padding on one axis so the image reaches target_ratio.
+    Crop mode: removes pixels from one axis so the image reaches target_ratio.
+
+    The anchor controls which side stays fixed:
+    - When width changes (horizontal adjustment): left / center / right
+    - When height changes (vertical adjustment): top / center / bottom
+
+    Deep EXR files are not supported. Output file must not be the same path as input.
+    """
+    return await _handle_errors(
+        asyncio.to_thread(EXR.reframe, input_path, output_path, target_ratio, mode, anchor, part_index)
+    )
+
+
 if __name__ == "__main__":
     mcp.run()

@@ -571,3 +571,162 @@ class ExrReader:
             "height": src_part.height(),
             "file_size_bytes": os.path.getsize(output_path),
         }
+
+    def reframe(
+        self,
+        input_path: str,
+        output_path: str,
+        target_ratio: float,
+        mode: str = "expand",
+        anchor: str = "center",
+        part_index: int = 0,
+    ) -> dict:
+        """Adjust an EXR's aspect ratio by expanding (black borders) or cropping.
+
+        Expand mode adds black (zero) padding to reach target_ratio.
+        Crop mode removes pixels from edges to reach target_ratio.
+        anchor controls which edge or side is kept as the reference point.
+        Only part_index is modified; other parts are written unchanged.
+        """
+        ok, err = self.validate_file(input_path)
+        if not ok:
+            return {"error": err}
+
+        if os.path.abspath(input_path) == os.path.abspath(output_path):
+            return {"error": "input_path and output_path must be different"}
+
+        if mode not in ("expand", "crop"):
+            return {"error": f"mode must be 'expand' or 'crop', got '{mode}'"}
+
+        if anchor not in ("center", "left", "right", "top", "bottom"):
+            return {"error": f"anchor must be one of center/left/right/top/bottom, got '{anchor}'"}
+
+        if target_ratio <= 0:
+            return {"error": "target_ratio must be positive"}
+
+        f = OpenEXR.File(input_path)
+        parts = f.parts
+
+        if part_index >= len(parts):
+            return {"error": f"part_index {part_index} out of range (file has {len(parts)} parts)"}
+
+        src_part = parts[part_index]
+
+        storage = src_part.type()
+        if storage in (OpenEXR.Storage.deepscanline, OpenEXR.Storage.deeptile):
+            return {"error": "Deep EXR (deepscanline/deeptile) is not supported"}
+
+        W = src_part.width()
+        H = src_part.height()
+        current_ratio = W / H
+
+        if abs(current_ratio - target_ratio) < 1e-4:
+            return {
+                "info": "Image already matches target ratio, no reframing needed",
+                "width": W,
+                "height": H,
+                "ratio": round(current_ratio, 6),
+            }
+
+        # Determine which axis changes and validate anchor
+        if mode == "expand":
+            change_axis = "x" if current_ratio < target_ratio else "y"
+        else:  # crop
+            change_axis = "x" if current_ratio > target_ratio else "y"
+
+        if change_axis == "x" and anchor not in ("center", "left", "right"):
+            return {"error": f"anchor '{anchor}' is not valid when width changes; use center, left, or right"}
+        if change_axis == "y" and anchor not in ("center", "top", "bottom"):
+            return {"error": f"anchor '{anchor}' is not valid when height changes; use center, top, or bottom"}
+
+        if change_axis == "x":
+            new_W = round(H * target_ratio)
+            new_H = H
+        else:
+            new_W = W
+            new_H = round(W / target_ratio)
+
+        # Read all channel pixel arrays
+        channels_in = {name: ch.pixels for name, ch in src_part.channels.items()}
+
+        # Apply transform to each channel
+        # Pixel arrays may be 2D (H, W) or 3D (H, W, N) for packed multi-component channels
+        channels_out = {}
+        if mode == "expand":
+            if change_axis == "x":
+                if anchor == "left":
+                    ox = 0
+                elif anchor == "right":
+                    ox = new_W - W
+                else:
+                    ox = (new_W - W) // 2
+                for name, arr in channels_in.items():
+                    canvas = np.zeros((new_H, new_W) + arr.shape[2:], dtype=arr.dtype)
+                    canvas[:, ox:ox + W] = arr
+                    channels_out[name] = canvas
+            else:
+                if anchor == "top":
+                    oy = 0
+                elif anchor == "bottom":
+                    oy = new_H - H
+                else:
+                    oy = (new_H - H) // 2
+                for name, arr in channels_in.items():
+                    canvas = np.zeros((new_H, new_W) + arr.shape[2:], dtype=arr.dtype)
+                    canvas[oy:oy + H, :] = arr
+                    channels_out[name] = canvas
+        else:  # crop
+            if change_axis == "x":
+                if anchor == "left":
+                    sx = 0
+                elif anchor == "right":
+                    sx = W - new_W
+                else:
+                    sx = (W - new_W) // 2
+                for name, arr in channels_in.items():
+                    channels_out[name] = np.ascontiguousarray(arr[:, sx:sx + new_W])
+            else:
+                if anchor == "top":
+                    sy = 0
+                elif anchor == "bottom":
+                    sy = H - new_H
+                else:
+                    sy = (H - new_H) // 2
+                for name, arr in channels_in.items():
+                    channels_out[name] = np.ascontiguousarray(arr[sy:sy + new_H, :])
+
+        # Build header: copy allowed keys, update window sizes
+        # dataWindow/displayWindow format: (np.array([xmin, ymin]), np.array([xmax, ymax]))
+        header = {k: v for k, v in src_part.header.items() if k in self._EXTRACT_HEADER_KEYS}
+        new_window = (
+            np.array([0, 0], dtype=np.int32),
+            np.array([new_W - 1, new_H - 1], dtype=np.int32),
+        )
+        header["dataWindow"] = new_window
+        header["displayWindow"] = new_window
+
+        output_dir = os.path.dirname(os.path.abspath(output_path))
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+
+        try:
+            new_part = OpenEXR.Part(header, channels_out)
+            OpenEXR.File([new_part]).write(output_path)
+        except Exception as e:
+            return {"error": f"Failed to write EXR: {e}"}
+
+        return {
+            "input_path": input_path,
+            "output_path": output_path,
+            "mode": mode,
+            "anchor": anchor,
+            "original_width": W,
+            "original_height": H,
+            "original_ratio": round(current_ratio, 6),
+            "new_width": new_W,
+            "new_height": new_H,
+            "new_ratio": round(new_W / new_H, 6),
+            "target_ratio": target_ratio,
+            "channels": list(channels_out.keys()),
+            "file_size_bytes": os.path.getsize(output_path),
+        }
