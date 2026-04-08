@@ -1,7 +1,7 @@
 # mcp-server-openexr
 
 MCP Server that gives Claude direct access to local OpenEXR, TX texture, and DPX files,
-including metadata, channel info, pixel statistics, and part extraction.
+including metadata, channel info, pixel statistics, part extraction, and aspect ratio reframing.
 
 ## Requirements
 
@@ -36,6 +36,17 @@ uv run main.py
 | `compare_exr_channels` | Compare channel differences between two EXR files |
 | `check_exr_validity` | Validate EXR integrity and detect NaN/Inf pixels |
 | `extract_exr_part` | Extract one part into a new single-part EXR file |
+| `reframe_exr` | Adjust aspect ratio by expanding (black borders) or cropping |
+
+#### `reframe_exr` details
+
+Adjusts an EXR to a target aspect ratio (width/height).
+
+- **`mode`**: `expand` adds zero-value padding on one axis; `crop` removes pixels from one axis
+- **`target_ratio`**: e.g. `2.35`, `1.85`, `1.7778` (16:9), `1.0`
+- **`anchor`**: controls which side stays fixed (default `center`)
+  - Width changes (horizontal): `left` · `center` · `right`
+  - Height changes (vertical): `top` · `center` · `bottom`
 
 ### TX (MIP-mapped textures)
 
