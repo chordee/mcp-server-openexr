@@ -176,6 +176,10 @@ async def exr_sequence_to_video(
         str,
         Field(description="Video codec: 'h264' (mp4), 'h265' (mp4), 'prores_hq' (mov), 'prores_4444' (mov)")
     ] = "h264",
+    crf: Annotated[
+        int | None,
+        Field(description="CRF quality for h264/h265 (0–51, lower = better quality / larger file). null uses defaults: h264=18, h265=20. Ignored for prores codecs.", ge=0, le=51)
+    ] = None,
     input_colorspace: Annotated[
         str,
         Field(description="Color space of the source EXR: 'linear' (Rec.709 linear), 'acescg' (AP1 linear), 'srgb' (gamma-encoded)")
@@ -227,7 +231,7 @@ async def exr_sequence_to_video(
     return await _handle_errors(
         asyncio.to_thread(
             VIDEO.exr_sequence_to_video,
-            directory, output_path, pattern, fps, codec,
+            directory, output_path, pattern, fps, codec, crf,
             input_colorspace, output_colorspace, tonemap, exposure, scale, channels, part_index,
         )
     )

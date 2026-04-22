@@ -9,12 +9,15 @@ import imageio_ffmpeg
 import numpy as np
 import OpenEXR
 
-_CODEC_SETTINGS = {
-    "h264":        ["-c:v", "libx264",   "-crf", "18",  "-pix_fmt", "yuv420p"],
-    "h265":        ["-c:v", "libx265",   "-crf", "20",  "-pix_fmt", "yuv420p"],
+_CODEC_BASE = {
+    "h264":        ["-c:v", "libx264",   "-pix_fmt", "yuv420p"],
+    "h265":        ["-c:v", "libx265",   "-pix_fmt", "yuv420p"],
     "prores_hq":   ["-c:v", "prores_ks", "-profile:v", "3"],
     "prores_4444": ["-c:v", "prores_ks", "-profile:v", "4"],
 }
+
+_DEFAULT_CRF = {"h264": 18, "h265": 20}
+_CRF_CODECS = {"h264", "h265"}
 
 _EVEN_DIM_CODECS = {"h264", "h265"}
 
@@ -150,6 +153,7 @@ class ExrVideoWriter:
         pattern: str = "*.exr",
         fps: float = 24.0,
         codec: str = "h264",
+        crf: int | None = None,
         input_colorspace: str = "linear",
         output_colorspace: str = "srgb",
         tonemap: str = "none",
@@ -161,8 +165,15 @@ class ExrVideoWriter:
         if not os.path.isdir(directory):
             return {"error": f"Directory not found: {directory}"}
 
-        if codec not in _CODEC_SETTINGS:
-            return {"error": f"codec must be one of {list(_CODEC_SETTINGS.keys())}, got '{codec}'"}
+        if codec not in _CODEC_BASE:
+            return {"error": f"codec must be one of {list(_CODEC_BASE.keys())}, got '{codec}'"}
+
+        if crf is not None:
+            if codec not in _CRF_CODECS:
+                return {"error": f"crf is only supported for h264/h265, not '{codec}'"}
+            if not (0 <= crf <= 51):
+                return {"error": f"crf must be between 0 and 51, got {crf}"}
+        effective_crf = crf if crf is not None else _DEFAULT_CRF.get(codec)
 
         if input_colorspace not in _VALID_COLORSPACES:
             return {"error": f"input_colorspace must be one of {_VALID_COLORSPACES}, got '{input_colorspace}'"}
@@ -227,6 +238,10 @@ class ExrVideoWriter:
         if out_W != round(enc_W * scale) or out_H != round(enc_H * scale):
             dim_notes.append(f"output adjusted to {out_W}x{out_H} (even dimensions required)")
 
+        codec_args = list(_CODEC_BASE[codec])
+        if effective_crf is not None:
+            codec_args += ["-crf", str(effective_crf)]
+
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         cmd = [
             ffmpeg_exe, "-y",
@@ -236,7 +251,7 @@ class ExrVideoWriter:
             "-pix_fmt", "rgb24",
             "-i", "pipe:0",
             *vf_args,
-            *_CODEC_SETTINGS[codec],
+            *codec_args,
             output_path,
         ]
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -283,6 +298,7 @@ class ExrVideoWriter:
             "output_resolution": f"{out_W}x{out_H}",
             "fps": fps,
             "codec": codec,
+            "crf": effective_crf,
             "input_colorspace": input_colorspace,
             "output_colorspace": output_colorspace,
             "tonemap": tonemap,
