@@ -7,11 +7,13 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from exr_reader import ExrReader
+from exr_video_writer import ExrVideoWriter
 from tx_reader import TxReader
 from dpx_reader import DpxReader
 
 mcp = FastMCP("mcp-server-openexr")
 EXR = ExrReader()
+VIDEO = ExrVideoWriter()
 TX = TxReader()
 DPX = DpxReader()
 
@@ -161,6 +163,77 @@ async def extract_exr_part(
     """
     return await _handle_errors(
         asyncio.to_thread(EXR.extract_part, file_path, part_index, part_name)
+    )
+
+
+@mcp.tool()
+async def exr_sequence_to_video(
+    directory: Annotated[str, Field(description="Directory containing the EXR sequence")],
+    output_path: Annotated[str, Field(description="Absolute path for the output video file (.mp4 or .mov)")],
+    pattern: Annotated[str, Field(description="Filename glob pattern, e.g. '*.exr' or 'beauty.*.exr'")] = "*.exr",
+    fps: Annotated[float, Field(description="Frames per second", gt=0)] = 24.0,
+    codec: Annotated[
+        str,
+        Field(description="Video codec: 'h264' (mp4), 'h265' (mp4), 'prores_hq' (mov), 'prores_4444' (mov)")
+    ] = "h264",
+    crf: Annotated[
+        int | None,
+        Field(description="CRF quality for h264/h265 (0–51, lower = better quality / larger file). null uses defaults: h264=18, h265=20. Ignored for prores codecs.", ge=0, le=51)
+    ] = None,
+    input_colorspace: Annotated[
+        str,
+        Field(description="Color space of the source EXR: 'linear' (Rec.709 linear), 'acescg' (AP1 linear), 'srgb' (gamma-encoded)")
+    ] = "linear",
+    output_colorspace: Annotated[
+        str,
+        Field(description="Color space of the output video: 'srgb' (display-ready, default), 'linear' (Rec.709 linear, for editorial), 'acescg' (AP1 linear, for editorial/DI)")
+    ] = "srgb",
+    tonemap: Annotated[
+        str,
+        Field(description="HDR tone compression operator applied before output: 'none' (clamp only, default), 'reinhard' (soft roll-off x/(1+x))")
+    ] = "none",
+    exposure: Annotated[float, Field(description="Exposure multiplier applied before tone mapping", gt=0)] = 1.0,
+    scale: Annotated[float, Field(description="Output resolution scale relative to input (e.g. 0.5 = 50%, 2.0 = 200%)", gt=0)] = 1.0,
+    channels: Annotated[
+        list[str] | None,
+        Field(description=(
+            "Channel names for RGB output. null = auto-detect. "
+            "Use 3 separate names (e.g. ['R','G','B'] or ['beauty.R','beauty.G','beauty.B']) "
+            "or 1 packed channel with ≥3 components (e.g. ['RGBA'])."
+        ))
+    ] = None,
+    part_index: Annotated[int, Field(description="Part index to read (0-based)", ge=0)] = 0,
+) -> dict:
+    """
+    Convert an EXR image sequence to video (mp4 or mov).
+
+    Reads RGB channels from each EXR frame, applies color space conversion, and encodes
+    with the bundled ffmpeg binary — no external ffmpeg installation needed.
+
+    Color pipeline: decode input gamma/primaries → Rec.709 linear working space
+    → exposure → tonemap → convert to output primaries → encode output gamma → uint8.
+
+    Codec options:
+    - h264: H.264, .mp4 — widely compatible, good for dailies and review
+    - h265: H.265, .mp4 — better compression, requires modern player support
+    - prores_hq: Apple ProRes HQ, .mov — high quality, common in VFX and editorial
+    - prores_4444: Apple ProRes 4444, .mov — maximum quality, supports alpha
+
+    Typical usage:
+    - ACEScg EXR → sRGB review video: input_colorspace='acescg', output_colorspace='srgb'
+    - Linear EXR → sRGB review video: input_colorspace='linear', output_colorspace='srgb'
+    - sRGB EXR → sRGB video (pass-through): input_colorspace='srgb', output_colorspace='srgb'
+    - ACEScg EXR → ACEScg editorial video: input_colorspace='acescg', output_colorspace='acescg'
+
+    Use tonemap='reinhard' when the source has HDR values well above 1.0.
+    Frames are sorted by the numeric run in the filename (e.g. frame.0001.exr, frame.0002.exr).
+    """
+    return await _handle_errors(
+        asyncio.to_thread(
+            VIDEO.exr_sequence_to_video,
+            directory, output_path, pattern, fps, codec, crf,
+            input_colorspace, output_colorspace, tonemap, exposure, scale, channels, part_index,
+        )
     )
 
 

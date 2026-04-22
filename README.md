@@ -1,7 +1,8 @@
 # mcp-server-openexr
 
 MCP Server that gives Claude direct access to local OpenEXR, TX texture, and DPX files,
-including metadata, channel info, pixel statistics, part extraction, and aspect ratio reframing.
+including metadata, channel info, pixel statistics, part extraction, aspect ratio reframing,
+and EXR sequence to video conversion.
 
 ## Requirements
 
@@ -37,6 +38,7 @@ uv run main.py
 | `check_exr_validity` | Validate EXR integrity and detect NaN/Inf pixels |
 | `extract_exr_part` | Extract one part into a new single-part EXR file |
 | `reframe_exr` | Adjust aspect ratio by expanding (black borders) or cropping |
+| `exr_sequence_to_video` | Convert EXR sequence to mp4 or mov with color space conversion |
 
 #### `reframe_exr` details
 
@@ -47,6 +49,28 @@ Adjusts an EXR to a target aspect ratio (width/height).
 - **`anchor`**: controls which side stays fixed (default `center`)
   - Width changes (horizontal): `left` · `center` · `right`
   - Height changes (vertical): `top` · `center` · `bottom`
+
+#### `exr_sequence_to_video` details
+
+Converts an EXR image sequence to video. The bundled ffmpeg binary is used automatically —
+no external ffmpeg installation required.
+
+- **`codec`**: `h264` (.mp4) · `h265` (.mp4) · `prores_hq` (.mov) · `prores_4444` (.mov)
+- **`input_colorspace`**: `linear` (Rec.709 linear, default) · `acescg` (AP1 linear) · `srgb` (gamma-encoded)
+- **`output_colorspace`**: `srgb` (display-ready, default) · `linear` (Rec.709 linear) · `acescg` (AP1 linear)
+- **`tonemap`**: `none` (clamp, default) · `reinhard` (soft roll-off, useful when source has HDR values > 1)
+- **`crf`**: CRF quality for h264/h265 (0–51, lower = better; defaults: h264=18, h265=20). Ignored for ProRes.
+- **`exposure`**: Multiplier applied before tone mapping (default `1.0`)
+- **`scale`**: Output resolution scale, e.g. `0.5` = 50% (default `1.0`)
+- **`channels`**: null = auto-detect (`R`/`G`/`B` or packed `RGBA`); or specify explicitly e.g. `["beauty.R","beauty.G","beauty.B"]`
+
+Typical usage:
+
+| Source EXR | Target | Settings |
+| ---------- | ------ | -------- |
+| ACEScg render | sRGB review (mp4) | `input_colorspace='acescg'`, `output_colorspace='srgb'` |
+| Linear render | sRGB review (mp4) | `input_colorspace='linear'`, `output_colorspace='srgb'` |
+| ACEScg render | ACEScg editorial (ProRes) | `input_colorspace='acescg'`, `output_colorspace='acescg'`, `codec='prores_hq'` |
 
 ### TX (MIP-mapped textures)
 
