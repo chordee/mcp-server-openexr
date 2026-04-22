@@ -8,6 +8,7 @@ dependencies = [
     "openexr>=3.3.0",
     "numpy>=1.26.0",
     "openimageio>=3.0.0",
+    "imageio-ffmpeg>=0.4.9",
 ]
 
 [build-system]
@@ -15,4 +16,4 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["main", "exr_reader", "exr_types", "tx_reader", "tx_types", "dpx_reader", "dpx_types"]
+py-modules = ["main", "exr_reader", "exr_types", "tx_reader", "tx_types", "dpx_reader", "dpx_types", "exr_video_writer"]
